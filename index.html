@@ -1,0 +1,552 @@
+
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Tug of War Vocabulary Game</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=Cairo:wght@600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            background-color: #020617;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.6)); }
+            50% { transform: scale(1.02); filter: drop-shadow(0 0 25px rgba(239, 68, 68, 0.8)); }
+        }
+        .animate-glow {
+            animation: pulseGlow 2s infinite;
+        }
+        @keyframes ropePull {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-2px); }
+        }
+        .rope-vibrate {
+            animation: ropePull 0.3s infinite;
+        }
+        @keyframes bounceTeam {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        .team-active {
+            animation: bounceTeam 0.35s ease-in-out infinite;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+            animation: shake 0.3s ease-in-out;
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+        }
+        .confetti {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            top: -10px;
+            z-index: 100;
+            animation: confettiFall 3s linear infinite;
+        }
+
+        /* ===== Tug of war pullers ===== */
+        .team { position:absolute; bottom:12px; display:flex; align-items:flex-end; z-index:10;
+                transition:left .6s cubic-bezier(.34,1.35,.5,1); }
+        .team-blue { --dir:-1; translate:calc(-100% - 14px) 0; }
+        .team-red  { --dir:1;  translate:14px 0; }
+        .team-red .puller svg { transform:scaleX(-1); }
+        .puller { width:34px; height:51px; color:var(--c); transform-origin:50% 100%;
+                  animation:strain .8s ease-in-out infinite; animation-delay:calc(var(--i) * -.27s); }
+        .puller + .puller { margin-left:-12px; }
+        .puller svg { width:100%; height:100%; display:block; overflow:visible; }
+        @keyframes strain {
+            0%,100% { transform:rotate(calc(var(--dir) * 2deg)); }
+            50%     { transform:rotate(calc(var(--dir) * 7deg)) translateX(calc(var(--dir) * 2px)); }
+        }
+        @keyframes heave {
+            0%   { transform:rotate(calc(var(--dir) * 3deg)); }
+            35%  { transform:rotate(calc(var(--dir) * 18deg)) translateX(calc(var(--dir) * 5px)); }
+            100% { transform:rotate(calc(var(--dir) * 3deg)); }
+        }
+        @keyframes stumble {
+            0%   { transform:rotate(calc(var(--dir) * 3deg)); }
+            30%  { transform:rotate(calc(var(--dir) * -9deg)) translateX(calc(var(--dir) * -3px)); }
+            100% { transform:rotate(calc(var(--dir) * 3deg)); }
+        }
+        .team.pull-win  .puller { animation:heave .6s ease-out;   animation-delay:calc(var(--i) * 45ms); }
+        .team.pull-lose .puller { animation:stumble .6s ease-out; animation-delay:calc(var(--i) * 45ms); }
+
+        /* ===== Rope ===== */
+        .rope { background:linear-gradient(115deg,#b45309 0 42%,#78350f 42% 58%,#b45309 58% 100%);
+                background-size:10px 100%; box-shadow:0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(253,224,71,.35); }
+        @keyframes twistLeft  { to { background-position:-20px 0; } }
+        @keyframes twistRight { to { background-position:20px 0; } }
+        .rope.rope-to-left  { animation:ropePull .3s infinite, twistLeft .3s linear infinite; }
+        .rope.rope-to-right { animation:ropePull .3s infinite, twistRight .3s linear infinite; }
+        @media (prefers-reduced-motion: reduce) {
+            .puller, .team.pull-win .puller, .team.pull-lose .puller, .rope { animation:none !important; }
+        }
+    </style>
+</head>
+<body class="text-white flex flex-col justify-between min-h-screen select-none">
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <symbol id="puller" viewBox="0 0 40 60">
+                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 36 L8 57" stroke-width="4.4"/>
+                    <path d="M20 36 L29 57" stroke-width="4.4"/>
+                    <path d="M14 20 L36 26" stroke-width="3.6" stroke-opacity=".7"/>
+                    <path d="M20 36 L14 19" stroke-width="7"/>
+                    <path d="M14 21 L34 25" stroke-width="3.8"/>
+                </g>
+                <circle cx="11.5" cy="10.5" r="5.5" fill="#fcd5b0"/>
+                <circle cx="35.5" cy="25.5" r="2.6" fill="#fcd5b0"/>
+            </symbol>
+        </defs>
+    </svg>
+
+
+    <header class="bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-2 shadow-2xl flex justify-between items-center z-20 shrink-0">
+        <!-- Blue Team Score (Left Header) -->
+        <div class="flex items-center space-x-2 bg-blue-950/90 px-3 py-1.5 rounded-xl border border-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]">
+            <span class="bg-blue-600 text-white font-black px-2.5 py-0.5 rounded-lg text-xs shadow">BLUE 🔵</span>
+            <span id="blueScore" class="text-xl font-black text-blue-400">0</span>
+        </div>
+        
+        <!-- Game Title & Info -->
+        <div class="text-center px-2">
+            <h1 class="text-sm md:text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-yellow-300 to-red-400">
+                🏆 TUG OF WAR VOCABULARY GAME 🏆
+            </h1>
+            <p class="text-[10px] md:text-xs text-slate-400 font-medium">Classroom Food & Drinks Vocabulary Match</p>
+        </div>
+
+        <!-- Red Team Score (Right Header) -->
+        <div class="flex items-center space-x-2 bg-red-950/90 px-3 py-1.5 rounded-xl border border-red-600 shadow-[0_0_10px_rgba(220,38,38,0.4)]">
+            <span id="redScore" class="text-xl font-black text-red-400">0</span>
+            <span class="bg-red-600 text-white font-black px-2.5 py-0.5 rounded-lg text-xs shadow">🔴 RED</span>
+        </div>
+    </header>
+
+    <main class="flex-grow grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 w-full max-w-7xl mx-auto items-stretch my-auto">
+        
+        <!-- ==================== 1. BLUE TEAM PANEL (LEFT) ==================== -->
+        <div id="blueCardBox" class="bg-gradient-to-b from-blue-950/90 to-slate-900 border-2 border-blue-600 rounded-2xl p-4 flex flex-col justify-between shadow-2xl relative">
+            <div class="absolute top-0 left-0 bg-blue-600 text-white text-xs font-black px-4 py-1 rounded-br-xl shadow">BLUE TEAM (LEFT)</div>
+            
+            <div class="mt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span id="blueCategory" class="bg-blue-500/20 text-blue-300 text-xs font-black px-3 py-1 rounded-full border border-blue-500/40">Vocabulary</span>
+                    <span class="text-sm text-blue-400 font-bold">⏱️ <span id="blueTimer" class="text-yellow-400 text-lg">15</span>s</span>
+                </div>
+
+                <div class="text-center text-xs font-bold text-blue-300 mb-2">✅ <span id="blueProgress">0</span> / <span class="totalQ">12</span> questions</div>
+                <!-- Image Container -->
+                <div class="w-full h-40 md:h-48 bg-slate-950 rounded-xl overflow-hidden mb-3 border border-blue-900 flex items-center justify-center shadow-inner relative">
+                    <img id="blueImage" src="" alt="Vocabulary Item" class="w-full h-full object-cover">
+                </div>
+
+                <h3 class="text-sm md:text-base font-bold text-white mb-3 text-center">What is the correct English word?</h3>
+            </div>
+
+            <!-- Multiple Choice Options -->
+            <div id="blueOptionsContainer" class="grid grid-cols-2 gap-2.5 w-full">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+        <!-- ==================== 2. CENTER TUG OF WAR ARENA ==================== -->
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 rounded-2xl p-4 border-2 border-slate-800 shadow-2xl flex flex-col justify-between relative overflow-hidden min-h-[220px]">
+            <div class="text-center">
+                <span class="bg-yellow-500/20 text-yellow-400 text-xs font-black px-4 py-1 rounded-full border border-yellow-500/40">ARENA BATTLE</span>
+            </div>
+
+            <!-- Tug of War Graphic & Animation -->
+            <div id="arenaTrack" class="relative my-auto w-full" style="height:112px;">
+                <div class="absolute top-0 left-1 text-xs font-bold text-blue-300">🔵 Blue Team</div>
+                <div class="absolute top-0 right-1 text-xs font-bold text-red-300">Red Team 🔴</div>
+                <!-- center line -->
+                <div class="absolute left-1/2 w-0.5 bg-yellow-400/70 shadow-[0_0_10px_#facc15] -translate-x-1/2" style="top:20px;bottom:12px;"></div>
+                <!-- ground -->
+                <div class="absolute left-0 right-0 h-1 rounded bg-slate-700" style="bottom:10px;"></div>
+                <!-- rope -->
+                <div id="rope" class="rope rope-vibrate absolute left-0 right-0 rounded-full" style="top:67px;height:7px;z-index:5;"></div>
+                <!-- flag -->
+                <div id="ropeFlag" class="absolute flex flex-col items-center transition-all duration-500" style="left:50%;top:38px;height:33px;z-index:6;translate:-50% 0;">
+                    <span class="text-lg leading-none">🚩</span>
+                    <span class="w-0.5 flex-grow bg-yellow-300"></span>
+                </div>
+                <div id="blueTeamGroup" class="team team-blue" style="left:50%"><div class="puller" style="--c:#1d4ed8;--i:0"><svg viewBox="0 0 40 60"><use href="#puller"/></svg></div><div class="puller" style="--c:#3b82f6;--i:1"><svg viewBox="0 0 40 60"><use href="#puller"/></svg></div><div class="puller" style="--c:#2563eb;--i:2"><svg viewBox="0 0 40 60"><use href="#puller"/></svg></div></div>
+                <div id="redTeamGroup" class="team team-red" style="left:50%"><div class="puller" style="--c:#dc2626;--i:0"><svg viewBox="0 0 40 60"><use href="#puller"/></svg></div><div class="puller" style="--c:#ef4444;--i:1"><svg viewBox="0 0 40 60"><use href="#puller"/></svg></div><div class="puller" style="--c:#b91c1c;--i:2"><svg viewBox="0 0 40 60"><use href="#puller"/></svg></div></div>
+            </div>
+
+            <div class="text-center bg-slate-950/60 py-2 px-3 rounded-xl border border-slate-800">
+                <p class="text-xs text-slate-300 font-semibold">Answer correctly to pull the rope to your side!</p>
+            </div>
+        </div>
+
+        <!-- ==================== 3. RED TEAM PANEL (RIGHT) ==================== -->
+        <div id="redCardBox" class="bg-gradient-to-b from-red-950/90 to-slate-900 border-2 border-red-600 rounded-2xl p-4 flex flex-col justify-between shadow-2xl relative">
+            <div class="absolute top-0 right-0 bg-red-600 text-white text-xs font-black px-4 py-1 rounded-bl-xl shadow">RED TEAM (RIGHT)</div>
+            
+            <div class="mt-4">
+                <div class="flex items-center justify-between mb-2">
+                    <span id="redCategory" class="bg-red-500/20 text-red-300 text-xs font-black px-3 py-1 rounded-full border border-red-500/40">Vocabulary</span>
+                    <span class="text-sm text-red-400 font-bold">⏱️ <span id="redTimer" class="text-yellow-400 text-lg">15</span>s</span>
+                </div>
+
+                <div class="text-center text-xs font-bold text-red-300 mb-2">✅ <span id="redProgress">0</span> / <span class="totalQ">12</span> questions</div>
+                <!-- Image Container -->
+                <div class="w-full h-40 md:h-48 bg-slate-950 rounded-xl overflow-hidden mb-3 border border-red-900 flex items-center justify-center shadow-inner relative">
+                    <img id="redImage" src="" alt="Vocabulary Item" class="w-full h-full object-cover">
+                </div>
+
+                <h3 class="text-sm md:text-base font-bold text-white mb-3 text-center">What is the correct English word?</h3>
+            </div>
+
+            <!-- Multiple Choice Options -->
+            <div id="redOptionsContainer" class="grid grid-cols-2 gap-2.5 w-full">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="text-center py-4 px-4 shrink-0" dir="rtl" style="font-family:'Cairo',sans-serif;">
+        <p class="text-base md:text-lg font-extrabold text-yellow-300">تصميم مروه ابوبكر</p>
+        <p class="text-sm md:text-base font-semibold text-slate-300">أكاديمية التعزيز</p>
+    </footer>
+
+    <div id="winnerModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border-2 border-slate-700 p-8 rounded-3xl max-w-md w-full text-center shadow-2xl animate-glow">
+            <div id="winnerEmoji" class="text-7xl mb-4">🏆</div>
+            <h2 id="winnerText" class="text-3xl font-black text-white mb-2">Winning Team!</h2>
+            <p id="winnerSubText" class="text-slate-300 text-sm md:text-base mb-6">Successfully pulled the rope and won the vocabulary round!</p>
+            <button onclick="resetGame()" class="w-full py-3.5 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-black rounded-xl shadow-lg text-lg transition transform active:scale-95 cursor-pointer">
+                🔄 Play New Match
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Textbook vocabulary database (all 12 items from the uploaded textbook image)
+        const vocabularyDB = [
+            { id: 1, word: "fruit", emoji: "🍎", category: "1. Fruit", image: "https://images.unsplash.com/photo-1610832958506-aa56368176cf?auto=format&fit=crop&w=500&q=80" },
+            { id: 2, word: "vegetables", emoji: "🥦", category: "2. Vegetables", image: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=500&q=80" },
+            { id: 3, word: "sandwiches", emoji: "🥪", category: "3. Sandwiches", image: "https://images.unsplash.com/photo-1528735602780-2552fd46c7af?auto=format&fit=crop&w=500&q=80" },
+            { id: 4, word: "cereal", emoji: "🥣", category: "4. Cereal", image: "https://images.unsplash.com/photo-1587314168485-3236d6710814?auto=format&fit=crop&w=500&q=80" },
+            { id: 5, word: "noodles", emoji: "🍜", category: "5. Noodles", image: "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?auto=format&fit=crop&w=500&q=80" },
+            { id: 6, word: "milkshake", emoji: "🥤", category: "6. Milkshake", image: "https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=500&q=80" },
+            { id: 7, word: "crisps", emoji: "🍟", category: "7. Crisps", image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=500&q=80" },
+            { id: 8, word: "cupcakes", emoji: "🧁", category: "8. Cupcakes", image: "https://images.unsplash.com/photo-1576618148400-f54bed99fcfd?auto=format&fit=crop&w=500&q=80" },
+            { id: 9, word: "salad", emoji: "🥗", category: "9. Salad", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=500&q=80" },
+            { id: 10, word: "tea", emoji: "🍵", category: "10. Tea", image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=500&q=80" },
+            { id: 11, word: "coffee", emoji: "☕", category: "11. Coffee", image: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=500&q=80" },
+            { id: 12, word: "lemonade", emoji: "🍋", category: "12. Lemonade", image: "https://images.unsplash.com/photo-1621263764928-df1444c5e859?auto=format&fit=crop&w=500&q=80" }
+        ];
+
+        let gameOver = false;
+        const queues = { blue: [], red: [] };
+        const locked = { blue: false, red: false };
+        const shuffled = () => [...vocabularyDB].sort(() => Math.random() - 0.5);
+        let ropePosition = 50; // 0 (far left / Blue win) to 100 (far right / Red win)
+        let blueScoreVal = 0;
+        let redScoreVal = 0;
+
+        let blueTimerVal = 15;
+        let redTimerVal = 15;
+        let blueTimerInterval = null;
+        let redTimerInterval = null;
+
+        // Web Audio API Synthesizer for sound effects
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playSound(type) {
+            if (!audioCtx) return;
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+
+            if (type === 'correct') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'win') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(523.25, now);
+                osc.frequency.setValueAtTime(659.25, now + 0.15);
+                osc.frequency.setValueAtTime(783.99, now + 0.3);
+                osc.frequency.setValueAtTime(1046.50, now + 0.45);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.8);
+                osc.start(now);
+                osc.stop(now + 0.8);
+            }
+        }
+
+        function imgFallback(img) {
+            // Network-free fallback: big emoji on a dark card (works even if remote images are blocked)
+            const item = vocabularyDB.find(v => v.image === img.dataset.src) || {};
+            const svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'><rect width='400' height='300' fill='#1e293b'/><text x='200' y='210' font-size='170' text-anchor='middle'>" + (item.emoji || '🍽️') + "</text></svg>";
+            img.onerror = null;
+            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        }
+
+        function initGame() {
+            gameOver = false;
+            queues.blue = shuffled();
+            queues.red = shuffled();
+            locked.blue = locked.red = false;
+            document.querySelectorAll('.confetti').forEach(c => c.remove());
+            document.querySelectorAll('.totalQ').forEach(e => e.innerText = vocabularyDB.length);
+            ropePosition = 50;
+            blueScoreVal = 0;
+            redScoreVal = 0;
+            document.getElementById('blueScore').innerText = 0;
+            document.getElementById('redScore').innerText = 0;
+            document.getElementById('winnerModal').classList.add('hidden');
+            document.getElementById('winnerModal').classList.remove('flex');
+
+            loadTeamQuestion('blue');
+            loadTeamQuestion('red');
+            updateRopeUI();
+        }
+
+        function loadTeamQuestion(team) {
+            if (gameOver) return;
+            const item = queues[team][0];
+            locked[team] = false;
+            updateProgress();
+            
+            if (team === 'blue') {
+                document.getElementById('blueCategory').innerText = item.category;
+                document.getElementById('blueImage').dataset.src = item.image; document.getElementById('blueImage').onerror = function(){ imgFallback(this); }; document.getElementById('blueImage').src = item.image;
+                generateOptions('blue', item.word);
+                resetTeamTimer('blue');
+            } else {
+                document.getElementById('redCategory').innerText = item.category;
+                document.getElementById('redImage').dataset.src = item.image; document.getElementById('redImage').onerror = function(){ imgFallback(this); }; document.getElementById('redImage').src = item.image;
+                generateOptions('red', item.word);
+                resetTeamTimer('red');
+            }
+        }
+
+        function updateProgress() {
+            document.getElementById('blueProgress').innerText = blueScoreVal;
+            document.getElementById('redProgress').innerText = redScoreVal;
+        }
+
+        function skipQuestion(team) {
+            if (gameOver) return;
+            queues[team].push(queues[team].shift()); // unanswered question comes back later
+            loadTeamQuestion(team);
+        }
+
+        function generateOptions(team, correctWord) {
+            const containerId = team === 'blue' ? 'blueOptionsContainer' : 'redOptionsContainer';
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            const incorrectWords = vocabularyDB
+                .filter(v => v.word !== correctWord)
+                .map(v => v.word)
+                .sort(() => Math.random() - 0.5)
+                .slice(0, 3);
+
+            const options = [...incorrectWords, correctWord].sort(() => Math.random() - 0.5);
+
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = team === 'blue' 
+                    ? "bg-blue-900/40 hover:bg-blue-800 text-white font-semibold py-3 px-3 rounded-xl border border-blue-700/60 transition text-xs md:text-sm shadow cursor-pointer active:scale-95 flex items-center justify-center text-center"
+                    : "bg-red-900/40 hover:bg-red-800 text-white font-semibold py-3 px-3 rounded-xl border border-red-700/60 transition text-xs md:text-sm shadow cursor-pointer active:scale-95 flex items-center justify-center text-center";
+                btn.innerText = opt;
+                btn.onclick = () => handleAnswer(team, opt, correctWord, btn);
+                container.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(team, selectedWord, correctWord, buttonElement) {
+            if (gameOver || locked[team]) return;
+            const isCorrect = (selectedWord === correctWord);
+
+            if (isCorrect) {
+                locked[team] = true;
+                playSound('correct');
+                buttonElement.classList.add('bg-emerald-600', 'border-emerald-400');
+                
+                if (team === 'blue') {
+                    blueScoreVal++;
+                    document.getElementById('blueScore').innerText = blueScoreVal;
+                    triggerTeamAnimation('blue');
+                } else {
+                    redScoreVal++;
+                    document.getElementById('redScore').innerText = redScoreVal;
+                    triggerTeamAnimation('red');
+                }
+
+                queues[team].shift();
+                updateRopeUI();
+                updateProgress();
+
+                if (queues[team].length === 0) {
+                    // first team to finish every question wins
+                    if (team === 'blue') {
+                        endGame("BLUE TEAM 🔵", "The Blue Team finished all " + vocabularyDB.length + " questions first!");
+                    } else {
+                        endGame("RED TEAM 🔴", "The Red Team finished all " + vocabularyDB.length + " questions first!");
+                    }
+                    return;
+                }
+
+                setTimeout(() => {
+                    if (!gameOver) loadTeamQuestion(team);
+                }, 350);
+
+            } else {
+                playSound('wrong');
+                buttonElement.classList.add('bg-rose-700', 'border-rose-400', 'animate-shake');
+                setTimeout(() => {
+                    buttonElement.classList.remove('animate-shake');
+                }, 300);
+            }
+        }
+
+        const animTimers = {};
+        function triggerTeamAnimation(team) {
+            const other = team === 'blue' ? 'red' : 'blue';
+            const winG = document.getElementById(team + 'TeamGroup');
+            const loseG = document.getElementById(other + 'TeamGroup');
+            const rope = document.getElementById('rope');
+            const dirClass = team === 'blue' ? 'rope-to-left' : 'rope-to-right';
+
+            winG.classList.remove('pull-win'); loseG.classList.remove('pull-lose');
+            rope.classList.remove('rope-to-left', 'rope-to-right');
+            void winG.offsetWidth; // restart animations
+            winG.classList.add('pull-win');
+            loseG.classList.add('pull-lose');
+            rope.classList.add(dirClass);
+
+            clearTimeout(animTimers.t);
+            animTimers.t = setTimeout(() => {
+                winG.classList.remove('pull-win');
+                loseG.classList.remove('pull-lose');
+                rope.classList.remove('rope-to-left', 'rope-to-right');
+            }, 700);
+        }
+
+        function updateRopeUI() {
+            // rope shows who is ahead: each question of lead pulls it a bit further
+            ropePosition = 50 + (redScoreVal - blueScoreVal) * (42 / vocabularyDB.length);
+            if (ropePosition < 8) ropePosition = 8;
+            if (ropePosition > 92) ropePosition = 92;
+            // map logical 8..92 to visual 27%..73% so both teams always stay inside the arena
+            const pct = 27 + (ropePosition - 8) / 84 * 46;
+            document.getElementById('ropeFlag').style.left = pct + '%';
+            document.getElementById('blueTeamGroup').style.left = pct + '%';
+            document.getElementById('redTeamGroup').style.left = pct + '%';
+        }
+
+        function endGame(winnerTitle, subtitle) {
+            gameOver = true;
+            clearInterval(blueTimerInterval);
+            clearInterval(redTimerInterval);
+            playSound('win');
+
+            document.getElementById('winnerText').innerText = winnerTitle + " WINS! 🎉";
+            document.getElementById('winnerSubText').innerText = subtitle;
+            document.getElementById('winnerModal').classList.remove('hidden');
+            document.getElementById('winnerModal').classList.add('flex');
+            createConfetti();
+        }
+
+        function resetTeamTimer(team) {
+            if (team === 'blue') {
+                clearInterval(blueTimerInterval);
+                blueTimerVal = 15;
+                document.getElementById('blueTimer').innerText = blueTimerVal;
+                blueTimerInterval = setInterval(() => {
+                    blueTimerVal--;
+                    document.getElementById('blueTimer').innerText = blueTimerVal;
+                    if (blueTimerVal <= 0) {
+                        skipQuestion('blue');
+                    }
+                }, 1000);
+            } else {
+                clearInterval(redTimerInterval);
+                redTimerVal = 15;
+                document.getElementById('redTimer').innerText = redTimerVal;
+                redTimerInterval = setInterval(() => {
+                    redTimerVal--;
+                    document.getElementById('redTimer').innerText = redTimerVal;
+                    if (redTimerVal <= 0) {
+                        skipQuestion('red');
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetGame() {
+            initGame();
+        }
+
+        function createConfetti() {
+            const colors = ['#3b82f6', '#ef4444', '#facc15', '#10b981', '#a855f7', '#f97316', '#ec4899', '#22d3ee'];
+            for (let wave = 0; wave < 3; wave++) {
+                setTimeout(() => {
+                    if (!gameOver) return;
+                    for (let i = 0; i < 70; i++) {
+                        const conf = document.createElement('div');
+                        conf.className = 'confetti';
+                        const w = Math.random() * 8 + 6;
+                        conf.style.width = w + 'px';
+                        conf.style.height = (w * (Math.random() * 1.5 + 0.8)) + 'px';
+                        conf.style.borderRadius = Math.random() > 0.7 ? '50%' : '2px';
+                        conf.style.left = Math.random() * 100 + 'vw';
+                        conf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                        conf.style.animationDuration = (Math.random() * 2.5 + 2.5) + 's';
+                        conf.style.animationDelay = (Math.random() * 1.2) + 's';
+                        conf.style.animationIterationCount = '1';
+                        document.body.appendChild(conf);
+                        setTimeout(() => conf.remove(), 6500);
+                    }
+                }, wave * 1800);
+            }
+        }
+
+        window.onload = function() {
+            initGame();
+        };
+    </script>
+</body>
+</html>
